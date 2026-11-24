@@ -1,0 +1,284 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบสแกน Tracking พัสดุ</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:#f5f3f9;color:#302b3d;font-family:Arial,sans-serif}
+.container{max-width:600px;margin:20px auto;background:#fff;padding:22px;border-radius:18px;box-shadow:0 4px 18px #00000012}
+h2{text-align:center;color:#7051a5;margin-top:0}
+#reader{width:100%;overflow:hidden;border-radius:12px}
+.status{margin:15px 0;padding:14px;background:#f0ebf8;border-radius:10px;text-align:center;line-height:1.5;overflow-wrap:anywhere}
+.tracking{margin-top:15px;padding:15px;background:#f7f7f7;border-radius:10px;text-align:center;word-break:break-all;font-size:18px;font-weight:bold}
+button{width:100%;padding:14px;border:0;border-radius:10px;background:#7051a5;color:#fff;font-size:16px;cursor:pointer;margin-top:10px}
+button.secondary{background:#777}
+button:disabled{opacity:.5}
+.small{font-size:13px;color:#777;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="container">
+<h2>ระบบสแกน Tracking พัสดุ</h2>
+<div id="status" class="status">กำลังเชื่อมต่อระบบพัสดุ...</div>
+<div id="reader"></div>
+<div id="tracking" class="tracking">รออ่านเลข Tracking</div>
+<button id="startBtn" onclick="startScanner()">เปิดกล้องสแกน</button>
+<button class="secondary" onclick="stopScanner()">ปิดกล้อง</button>
+<p class="small">เมื่อสแกนสำเร็จ เลข Tracking จะถูกส่งกลับไปยังหน้าระบบพัสดุ และกล้องจะพร้อมสแกนรายการถัดไปหลังบันทึกสำเร็จ</p>
+</div>
+
+<script>
+let scanner = null;
+let running = false;
+let paused = false;
+let starting = false;
+let parentOrigin = "";
+
+const statusBox = document.getElementById("status");
+const trackingBox = document.getElementById("tracking");
+const startBtn = document.getElementById("startBtn");
+
+// ตรวจสอบโดเมน Google Apps Script
+
+function isAllowedParentOrigin(origin) {
+  try {
+    const url = new URL(origin);
+
+    if (url.protocol !== "https:") return false;
+
+    const host = url.hostname.toLowerCase();
+
+    return (
+      host === "script.google.com" ||
+      host === "script.googleusercontent.com" ||
+      host.endsWith("-script.googleusercontent.com")
+    );
+
+  } catch (e) {
+    return false;
+  }
+}
+
+function setStatus(message) {
+  statusBox.textContent = message;
+}
+
+// แจ้งหน้าระบบหลักว่าหน้าสแกนพร้อมเชื่อมต่อ
+function notifyParentReady() {
+  if (!window.opener || window.opener.closed) {
+    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้านี้จากปุ่มสแกนในระบบ");
+    return;
+  }
+
+  window.opener.postMessage(
+    { type: "SCANNER_READY" },
+    "*"
+  );
+}
+
+// รับข้อความจากหน้าระบบหลัก
+window.addEventListener("message", function(event) {
+    console.log("ได้รับข้อความ:", {
+    type: event.data?.type,
+    origin: event.origin,
+    sourceIsOpener: event.source === window.opener,
+    openerExists: !!window.opener
+  });
+  if (!window.opener || window.opener.closed) return;
+  if (event.source !== window.opener) return;
+
+  // เชื่อมต่อครั้งแรก
+  if (event.data?.type === "PARENT_INIT") {
+
+    if (!isAllowedParentOrigin(event.origin)) {
+      setStatus("ไม่อนุญาตให้เชื่อมต่อจากต้นทางนี้: " + event.origin);
+      return;
+    }
+
+    parentOrigin = event.origin;
+
+    setStatus("เชื่อมต่อระบบพัสดุเรียบร้อย กดเปิดกล้องเพื่อเริ่มสแกน");
+
+    return;
+  }
+
+  // คำสั่งอื่นต้องมาจากต้นทางที่ยืนยันแล้ว
+  if (!parentOrigin || event.origin !== parentOrigin) return;
+
+  if (event.data?.type === "NEXT_SCAN") {
+
+    trackingBox.textContent = "รออ่าน Tracking รายการถัดไป";
+
+    if (scanner && running && paused) {
+      try {
+        scanner.resume();
+        paused = false;
+        setStatus("พร้อมสแกนพัสดุชิ้นถัดไป");
+      } catch (e) {
+        setStatus("ไม่สามารถเริ่มสแกนต่อได้ กรุณาปิดกล้องแล้วเปิดใหม่");
+      }
+    }
+  }
+});
+
+// ส่งข้อมูลกลับหน้าระบบหลัก
+function sendToParent(data) {
+
+  if (!window.opener || window.opener.closed) {
+    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้าสแกนจากระบบอีกครั้ง");
+    return false;
+  }
+
+  if (!parentOrigin) {
+    setStatus("ยังไม่ได้เชื่อมต่อกับหน้าระบบพัสดุ");
+    return false;
+  }
+
+  window.opener.postMessage(data, parentOrigin);
+  return true;
+}
+
+// เปิดกล้อง
+async function startScanner() {
+
+  if (running || starting) return;
+
+  if (!window.opener || window.opener.closed) {
+    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้าสแกนจากปุ่มในระบบ");
+    return;
+  }
+
+  if (!parentOrigin) {
+    setStatus("กำลังเชื่อมต่อกับหน้าระบบพัสดุ กรุณารอสักครู่");
+    return;
+  }
+
+  starting = true;
+  startBtn.disabled = true;
+  setStatus("กำลังเปิดกล้อง กรุณารอสักครู่...");
+
+  try {
+
+    if (typeof Html5Qrcode === "undefined") {
+      throw new Error("ไม่สามารถโหลดระบบสแกน QR/Barcode ได้");
+    }
+
+    if (!scanner) {
+      scanner = new Html5Qrcode("reader");
+    }
+
+    await scanner.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+          const width = Math.min(300, Math.floor(viewfinderWidth * 0.85));
+          const height = Math.min(160, Math.floor(viewfinderHeight * 0.4));
+          return { width, height };
+        },
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.CODE_93,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.ITF
+        ]
+      },
+      onScanSuccess,
+      function() {}
+    );
+
+    running = true;
+    paused = false;
+
+    setStatus("กล้องพร้อมใช้งาน กรุณาสแกน Barcode หรือ QR Code");
+
+  } catch (error) {
+
+    running = false;
+    paused = false;
+
+    setStatus(
+      "เปิดกล้องไม่สำเร็จ: " +
+      (error.message || error) +
+      " — กรุณาตรวจสอบสิทธิ์กล้อง"
+    );
+
+  } finally {
+    starting = false;
+    startBtn.disabled = false;
+  }
+}
+
+// เมื่อสแกนสำเร็จ
+function onScanSuccess(decodedText) {
+
+  if (paused) return;
+
+  const value = String(decodedText || "").trim();
+  if (!value) return;
+
+  paused = true;
+
+  try {
+    scanner.pause(true);
+  } catch (e) {}
+
+  trackingBox.textContent = value;
+  setStatus("สแกนสำเร็จ กำลังส่งเลข Tracking กลับระบบ...");
+
+  const sent = sendToParent({
+    type: "TRACKING_SCANNED",
+    tracking: value
+  });
+
+  if (sent) {
+    setStatus("ส่งเลข Tracking แล้ว กรุณาตรวจสอบและบันทึกพัสดุในหน้าระบบหลัก");
+  } else {
+    paused = false;
+    try {
+      scanner.resume();
+    } catch (e) {}
+  }
+}
+
+// ปิดกล้อง
+async function stopScanner() {
+
+  if (!scanner || !running) return;
+
+  try {
+
+    await scanner.stop();
+
+    running = false;
+    paused = false;
+
+    setStatus("ปิดกล้องแล้ว");
+
+  } catch (e) {
+    setStatus("ไม่สามารถปิดกล้องได้ กรุณาลองอีกครั้ง");
+  }
+}
+
+window.addEventListener("beforeunload", function() {
+  if (scanner && running) {
+    scanner.stop().catch(function() {});
+  }
+});
+
+// เริ่มเชื่อมต่อ
+notifyParentReady();
+
+</script>
+</body>
+</html>
