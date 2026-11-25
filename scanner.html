@@ -4,59 +4,325 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ระบบสแกน Tracking พัสดุ</title>
+<title>ระบบถ่ายภาพและสแกนพัสดุ</title>
+
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <style>
-*{box-sizing:border-box}
-body{margin:0;padding:20px;background:#f5f3f9;color:#302b3d;font-family:Arial,sans-serif}
-.container{max-width:600px;margin:20px auto;background:#fff;padding:22px;border-radius:18px;box-shadow:0 4px 18px #00000012}
-h2{text-align:center;color:#7051a5;margin-top:0}
-#reader{width:100%;overflow:hidden;border-radius:12px}
-.status{margin:15px 0;padding:14px;background:#f0ebf8;border-radius:10px;text-align:center;line-height:1.5;overflow-wrap:anywhere}
-.tracking{margin-top:15px;padding:15px;background:#f7f7f7;border-radius:10px;text-align:center;word-break:break-all;font-size:18px;font-weight:bold}
-button{width:100%;padding:14px;border:0;border-radius:10px;background:#7051a5;color:#fff;font-size:16px;cursor:pointer;margin-top:10px}
-button.secondary{background:#777}
-button:disabled{opacity:.5}
-.small{font-size:13px;color:#777;text-align:center;line-height:1.6}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 18px;
+  font-family: Arial, sans-serif;
+  background: #f5f3f9;
+  color: #302b3d;
+}
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.08);
+}
+
+h2 {
+  text-align: center;
+  color: #7051a5;
+  margin: 4px 0 8px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #777;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+
+.status {
+  background: #f1edf8;
+  color: #7051a5;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  font-size: 14px;
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.camera-area {
+  width: 100%;
+  min-height: 260px;
+  background: #171717;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+#reader {
+  width: 100%;
+  display: none;
+  background: #000;
+}
+
+#reader video {
+  width: 100% !important;
+  border-radius: 12px;
+}
+
+#photoVideo {
+  display: none;
+  width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  background: #000;
+}
+
+.camera-placeholder {
+  color: #fff;
+  text-align: center;
+  padding: 25px;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: .15s;
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.btn-photo {
+  background: #7051a5;
+  color: #fff;
+}
+
+.btn-scan {
+  background: #16865b;
+  color: #fff;
+}
+
+.btn-stop {
+  background: #e9e9e9;
+  color: #333;
+}
+
+button:active:not(:disabled) {
+  transform: scale(.98);
+}
+
+.result {
+  margin-top: 15px;
+  padding: 13px;
+  border: 1px solid #e5e0ed;
+  border-radius: 10px;
+  display: none;
+  overflow-wrap: anywhere;
+}
+
+.result-label {
+  color: #777;
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.tracking {
+  font-size: 19px;
+  font-weight: bold;
+  color: #16865b;
+}
+
+.photo-info {
+  font-size: 13px;
+  color: #666;
+  text-align: center;
+  margin-top: 12px;
+  line-height: 1.6;
+}
+
+#downloadLink {
+  display: none;
+}
+
+@media(max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+
+  .container {
+    padding: 14px;
+  }
+
+  .camera-area {
+    min-height: 230px;
+  }
+}
 </style>
 </head>
+
 <body>
 
 <div class="container">
-<h2>ระบบสแกน Tracking พัสดุ</h2>
-<div id="status" class="status">กำลังเชื่อมต่อระบบพัสดุ...</div>
-<div id="reader"></div>
-<div id="tracking" class="tracking">รออ่านเลข Tracking</div>
-<button id="startBtn" onclick="startScanner()">เปิดกล้องสแกน</button>
-<button class="secondary" onclick="stopScanner()">ปิดกล้อง</button>
-<p class="small">เมื่อสแกนสำเร็จ เลข Tracking จะถูกส่งกลับไปยังหน้าระบบพัสดุ และกล้องจะพร้อมสแกนรายการถัดไปหลังบันทึกสำเร็จ</p>
+
+  <h2>ระบบถ่ายภาพและสแกนพัสดุ</h2>
+  <div class="subtitle">ระบบจัดการพัสดุคอนโด</div>
+
+  <div id="status" class="status">
+    กรุณาเลือกโหมดการใช้งาน
+  </div>
+
+  <div class="camera-area">
+
+    <div id="cameraPlaceholder" class="camera-placeholder">
+      <div style="font-size:42px;">📷</div>
+      กรุณากดปุ่มกล้องถ่ายรูปหรือกล้องสแกน
+    </div>
+
+    <video
+      id="photoVideo"
+      autoplay
+      playsinline
+      muted>
+    </video>
+
+    <div id="reader"></div>
+
+  </div>
+
+  <!-- ปุ่มเรียงตามที่กำหนด -->
+  <div class="buttons">
+
+    <button
+      id="photoButton"
+      class="btn-photo"
+      onclick="startPhotoCamera()">
+      📷 กล้องถ่ายรูป
+    </button>
+
+    <button
+      id="scanButton"
+      class="btn-scan"
+      onclick="startScanner()">
+      🔍 กล้องสแกน
+    </button>
+
+    <button
+      id="stopButton"
+      class="btn-stop"
+      onclick="stopAllCameras()">
+      ⏹ ปิดกล้อง
+    </button>
+
+  </div>
+
+  <div id="result" class="result">
+    <div class="result-label">เลข Tracking ที่อ่านได้</div>
+    <div id="trackingValue" class="tracking"></div>
+  </div>
+
+  <div id="photoInfo" class="photo-info">
+    เมื่อถ่ายภาพแล้ว ระบบจะดาวน์โหลดรูปภาพลงอุปกรณ์
+    และยังสามารถถ่ายภาพต่อได้โดยไม่ต้องเปิดหน้าใหม่
+  </div>
+
+  <a id="downloadLink"></a>
+
 </div>
 
+<canvas id="photoCanvas" style="display:none;"></canvas>
+
 <script>
+/* =========================================
+   CONFIGURATION
+========================================= */
+
 let scanner = null;
+let photoStream = null;
+
 let running = false;
-let paused = false;
 let starting = false;
-let parentOrigin = "";
+let paused = false;
 
-const statusBox = document.getElementById("status");
-const trackingBox = document.getElementById("tracking");
-const startBtn = document.getElementById("startBtn");
+let parentOrigin = null;
+let currentMode = "none";
+let modeRequestId = 0;
+let scanSent = false;
 
-// ตรวจสอบโดเมน Google Apps Script
+const statusEl = document.getElementById("status");
+const readerEl = document.getElementById("reader");
+const photoVideo = document.getElementById("photoVideo");
+const placeholder = document.getElementById("cameraPlaceholder");
+
+const photoButton = document.getElementById("photoButton");
+const scanButton = document.getElementById("scanButton");
+const stopButton = document.getElementById("stopButton");
+
+const resultEl = document.getElementById("result");
+const trackingValueEl = document.getElementById("trackingValue");
+const photoInfoEl = document.getElementById("photoInfo");
+
+
+/* =========================================
+   STATUS
+========================================= */
+
+function setStatus(message) {
+  statusEl.textContent = message;
+}
+
+function setButtonsDisabled(disabled) {
+  photoButton.disabled = disabled;
+  scanButton.disabled = disabled;
+  stopButton.disabled = disabled;
+}
+
+function showPlaceholder() {
+  placeholder.style.display = "block";
+  readerEl.style.display = "none";
+  photoVideo.style.display = "none";
+}
+
+function hidePlaceholder() {
+  placeholder.style.display = "none";
+}
+
+
+/* =========================================
+   PARENT WINDOW COMMUNICATION
+========================================= */
 
 function isAllowedParentOrigin(origin) {
   try {
-    const url = new URL(origin);
-
-    if (url.protocol !== "https:") return false;
-
-    const host = url.hostname.toLowerCase();
+    const host = new URL(origin).hostname;
 
     return (
       host === "script.google.com" ||
       host === "script.googleusercontent.com" ||
-      host.endsWith("-script.googleusercontent.com")
+      host.endsWith(".script.googleusercontent.com")
     );
 
   } catch (e) {
@@ -64,78 +330,17 @@ function isAllowedParentOrigin(origin) {
   }
 }
 
-function setStatus(message) {
-  statusBox.textContent = message;
-}
-
-// แจ้งหน้าระบบหลักว่าหน้าสแกนพร้อมเชื่อมต่อ
 function notifyParentReady() {
-  if (!window.opener || window.opener.closed) {
-    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้านี้จากปุ่มสแกนในระบบ");
-    return;
-  }
+  if (!window.opener) return;
 
-  window.opener.postMessage(
-    { type: "SCANNER_READY" },
-    "*"
-  );
+  window.opener.postMessage({
+    type: "SCANNER_READY"
+  }, "*");
 }
 
-// รับข้อความจากหน้าระบบหลัก
-window.addEventListener("message", function(event) {
-    console.log("ได้รับข้อความ:", {
-    type: event.data?.type,
-    origin: event.origin,
-    sourceIsOpener: event.source === window.opener,
-    openerExists: !!window.opener
-  });
-  if (!window.opener || window.opener.closed) return;
-  if (event.source !== window.opener) return;
-
-  // เชื่อมต่อครั้งแรก
-  if (event.data?.type === "PARENT_INIT") {
-
-    if (!isAllowedParentOrigin(event.origin)) {
-      setStatus("ไม่อนุญาตให้เชื่อมต่อจากต้นทางนี้: " + event.origin);
-      return;
-    }
-
-    parentOrigin = event.origin;
-
-    setStatus("เชื่อมต่อระบบพัสดุเรียบร้อย กดเปิดกล้องเพื่อเริ่มสแกน");
-
-    return;
-  }
-
-  // คำสั่งอื่นต้องมาจากต้นทางที่ยืนยันแล้ว
-  if (!parentOrigin || event.origin !== parentOrigin) return;
-
-  if (event.data?.type === "NEXT_SCAN") {
-
-    trackingBox.textContent = "รออ่าน Tracking รายการถัดไป";
-
-    if (scanner && running && paused) {
-      try {
-        scanner.resume();
-        paused = false;
-        setStatus("พร้อมสแกนพัสดุชิ้นถัดไป");
-      } catch (e) {
-        setStatus("ไม่สามารถเริ่มสแกนต่อได้ กรุณาปิดกล้องแล้วเปิดใหม่");
-      }
-    }
-  }
-});
-
-// ส่งข้อมูลกลับหน้าระบบหลัก
 function sendToParent(data) {
-
-  if (!window.opener || window.opener.closed) {
-    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้าสแกนจากระบบอีกครั้ง");
-    return false;
-  }
-
-  if (!parentOrigin) {
-    setStatus("ยังไม่ได้เชื่อมต่อกับหน้าระบบพัสดุ");
+  if (!window.opener || !parentOrigin) {
+    setStatus("ไม่สามารถเชื่อมต่อกับหน้าระบบหลักได้");
     return false;
   }
 
@@ -143,142 +348,516 @@ function sendToParent(data) {
   return true;
 }
 
-// เปิดกล้อง
-async function startScanner() {
+window.addEventListener("message", function(event) {
 
-  if (running || starting) return;
+  if (event.source !== window.opener) return;
 
-  if (!window.opener || window.opener.closed) {
-    setStatus("ไม่พบหน้าระบบพัสดุ กรุณาเปิดหน้าสแกนจากปุ่มในระบบ");
+  if (event.data?.type === "PARENT_INIT") {
+
+    if (!isAllowedParentOrigin(event.origin)) return;
+
+    parentOrigin = event.origin;
+
+    notifyParentReady();
     return;
   }
 
-  if (!parentOrigin) {
-    setStatus("กำลังเชื่อมต่อกับหน้าระบบพัสดุ กรุณารอสักครู่");
+  if (!parentOrigin || event.origin !== parentOrigin) return;
+
+  if (event.data?.type === "NEXT_SCAN") {
+
+    if (currentMode === "scan" && scanner && paused) {
+      try {
+        scanner.resume();
+        paused = false;
+        scanSent = false;
+        setStatus("พร้อมสแกน Tracking รายการถัดไป");
+      } catch (e) {
+        startScanner();
+      }
+    } else {
+      startScanner();
+    }
+  }
+
+});
+
+
+/* =========================================
+   STOP PHOTO CAMERA
+========================================= */
+
+function stopPhotoCamera() {
+
+  if (photoStream) {
+
+    photoStream.getTracks().forEach(track => {
+      try {
+        track.stop();
+      } catch (e) {}
+    });
+
+    photoStream = null;
+  }
+
+  photoVideo.pause();
+  photoVideo.srcObject = null;
+  photoVideo.style.display = "none";
+}
+
+
+/* =========================================
+   STOP QR / BARCODE SCANNER
+========================================= */
+
+async function stopScanner() {
+
+  if (!scanner) {
+    running = false;
+    starting = false;
+    paused = false;
+    readerEl.style.display = "none";
     return;
   }
 
-  starting = true;
-  startBtn.disabled = true;
-  setStatus("กำลังเปิดกล้อง กรุณารอสักครู่...");
+  const oldScanner = scanner;
+
+  scanner = null;
+  running = false;
+  starting = false;
+  paused = false;
+
+  try {
+    if (oldScanner.isScanning) {
+      await oldScanner.stop();
+    }
+  } catch (e) {
+    console.warn("Scanner stop:", e);
+  }
+
+  try {
+    oldScanner.clear();
+  } catch (e) {
+    console.warn("Scanner clear:", e);
+  }
+
+  readerEl.innerHTML = "";
+  readerEl.style.display = "none";
+}
+
+
+/* =========================================
+   STOP ALL CAMERAS
+========================================= */
+
+async function stopAllCameras() {
+
+  modeRequestId++;
+
+  setButtonsDisabled(true);
+  setStatus("กำลังปิดกล้อง...");
+
+  stopPhotoCamera();
+  await stopScanner();
+
+  currentMode = "none";
+  scanSent = false;
+
+  showPlaceholder();
+
+  resultEl.style.display = "none";
+
+  setButtonsDisabled(false);
+  setStatus("ปิดกล้องเรียบร้อยแล้ว");
+}
+
+
+/* =========================================
+   PHOTO CAMERA
+========================================= */
+
+async function startPhotoCamera() {
+
+  const requestId = ++modeRequestId;
+
+  setButtonsDisabled(true);
+  setStatus("กำลังเปิดกล้องถ่ายรูป...");
+
+  // ปิดกล้องสแกนก่อน
+  stopPhotoCamera();
+  await stopScanner();
+
+  if (requestId !== modeRequestId) return;
+
+  if (!navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia) {
+
+    setStatus("อุปกรณ์หรือเบราว์เซอร์ไม่รองรับการเปิดกล้อง");
+    setButtonsDisabled(false);
+    return;
+  }
 
   try {
 
-    if (typeof Html5Qrcode === "undefined") {
-      throw new Error("ไม่สามารถโหลดระบบสแกน QR/Barcode ได้");
-    }
-
-    if (!scanner) {
-      scanner = new Html5Qrcode("reader");
-    }
-
-    await scanner.start(
-      { facingMode: "environment" },
-      {
-        fps: 10,
-        qrbox: function(viewfinderWidth, viewfinderHeight) {
-          const width = Math.min(300, Math.floor(viewfinderWidth * 0.85));
-          const height = Math.min(160, Math.floor(viewfinderHeight * 0.4));
-          return { width, height };
-        },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.CODE_93,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.ITF
-        ]
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       },
-      onScanSuccess,
-      function() {}
-    );
+      audio: false
+    });
 
-    running = true;
-    paused = false;
+    // หากมีการกดเปลี่ยนโหมดระหว่างรอเปิดกล้อง
+    if (requestId !== modeRequestId) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
 
-    setStatus("กล้องพร้อมใช้งาน กรุณาสแกน Barcode หรือ QR Code");
+    photoStream = stream;
+    currentMode = "photo";
+
+    photoVideo.srcObject = stream;
+    photoVideo.style.display = "block";
+
+    readerEl.style.display = "none";
+    hidePlaceholder();
+
+    await photoVideo.play();
+
+    setStatus("เปิดกล้องถ่ายรูปแล้ว สามารถกดถ่ายภาพได้");
+    photoInfoEl.textContent =
+      "กำลังใช้โหมดถ่ายภาพพัสดุ สามารถถ่ายภาพได้หลายครั้ง";
 
   } catch (error) {
 
-    running = false;
-    paused = false;
+    console.error(error);
 
-    setStatus(
-      "เปิดกล้องไม่สำเร็จ: " +
-      (error.message || error) +
-      " — กรุณาตรวจสอบสิทธิ์กล้อง"
-    );
+    if (requestId === modeRequestId) {
+
+      currentMode = "none";
+      stopPhotoCamera();
+      showPlaceholder();
+
+      if (error.name === "NotAllowedError") {
+        setStatus("ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาตรวจสอบสิทธิ์กล้อง");
+      } else if (error.name === "NotFoundError") {
+        setStatus("ไม่พบกล้องบนอุปกรณ์");
+      } else {
+        setStatus("เปิดกล้องไม่สำเร็จ: " + error.message);
+      }
+    }
 
   } finally {
-    starting = false;
-    startBtn.disabled = false;
+
+    if (requestId === modeRequestId) {
+      setButtonsDisabled(false);
+    }
   }
 }
 
-// เมื่อสแกนสำเร็จ
+
+/* =========================================
+   CAPTURE PHOTO
+========================================= */
+
+function capturePhoto() {
+
+  if (currentMode !== "photo" ||
+      !photoStream ||
+      !photoVideo.videoWidth) {
+
+    setStatus("กรุณาเปิดกล้องถ่ายรูปก่อน");
+    return;
+  }
+
+  const canvas = document.getElementById("photoCanvas");
+  const context = canvas.getContext("2d");
+
+  canvas.width = photoVideo.videoWidth;
+  canvas.height = photoVideo.videoHeight;
+
+  context.drawImage(
+    photoVideo,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  canvas.toBlob(function(blob) {
+
+    if (!blob) {
+      setStatus("ไม่สามารถบันทึกภาพได้ กรุณาลองอีกครั้ง");
+      return;
+    }
+
+    const now = new Date();
+
+    const date =
+      now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      String(now.getDate()).padStart(2, "0");
+
+    const time =
+      String(now.getHours()).padStart(2, "0") +
+      String(now.getMinutes()).padStart(2, "0") +
+      String(now.getSeconds()).padStart(2, "0");
+
+    const fileName = "Parcel_" + date + "_" + time + ".jpg";
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.getElementById("downloadLink");
+
+    link.href = url;
+    link.download = fileName;
+
+    // สั่งดาวน์โหลดภาพ
+    link.click();
+
+    setStatus("ถ่ายภาพเรียบร้อยแล้ว กำลังบันทึกภาพลงอุปกรณ์");
+
+    photoInfoEl.textContent =
+      "บันทึกภาพ " + fileName +
+      " แล้ว สามารถถ่ายภาพต่อได้";
+
+    setTimeout(function() {
+      URL.revokeObjectURL(url);
+    }, 60000);
+
+  }, "image/jpeg", 0.92);
+}
+
+
+/* =========================================
+   PHOTO CAPTURE BUTTON
+   ใช้ปุ่มกล้องถ่ายรูป:
+   - ครั้งแรกเปิดกล้อง
+   - เมื่อเปิดกล้องแล้ว กดอีกครั้งเพื่อถ่ายภาพ
+========================================= */
+
+photoButton.addEventListener("click", function() {
+
+  if (currentMode === "photo" && photoStream) {
+    capturePhoto();
+  } else {
+    startPhotoCamera();
+  }
+
+});
+
+
+/* =========================================
+   QR / BARCODE SCANNER
+========================================= */
+
+async function startScanner() {
+
+  const requestId = ++modeRequestId;
+
+  setButtonsDisabled(true);
+  setStatus("กำลังเตรียมกล้องสแกน...");
+
+  // ปิดกล้องถ่ายรูปก่อน
+  stopPhotoCamera();
+  await stopScanner();
+
+  if (requestId !== modeRequestId) return;
+
+  if (typeof Html5Qrcode === "undefined") {
+    setStatus("โหลดระบบสแกนไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต");
+    setButtonsDisabled(false);
+    return;
+  }
+
+  currentMode = "scan";
+  scanSent = false;
+
+  readerEl.innerHTML = "";
+  readerEl.style.display = "block";
+  hidePlaceholder();
+
+  const formats = [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.ITF
+  ];
+
+  const newScanner = new Html5Qrcode("reader", {
+    formatsToSupport: formats,
+    verbose: false
+  });
+
+  scanner = newScanner;
+  starting = true;
+
+  try {
+
+    await newScanner.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        qrbox: function(viewWidth, viewHeight) {
+
+          const width = Math.min(280, viewWidth * 0.85);
+          const height = Math.min(160, viewHeight * 0.55);
+
+          return {
+            width: Math.floor(width),
+            height: Math.floor(height)
+          };
+        }
+      },
+
+      function(decodedText) {
+        onScanSuccess(decodedText);
+      },
+
+      function(errorMessage) {
+        // ไม่แสดงข้อความ error ระหว่างค้นหา Barcode
+      }
+    );
+
+    if (requestId !== modeRequestId) {
+      try {
+        await newScanner.stop();
+        newScanner.clear();
+      } catch (e) {}
+
+      return;
+    }
+
+    running = true;
+    starting = false;
+    paused = false;
+
+    setStatus("เปิดกล้องสแกนแล้ว กรุณานำ QR / Barcode ให้อยู่ในกรอบ");
+
+  } catch (error) {
+
+    console.error(error);
+
+    if (scanner === newScanner) {
+      scanner = null;
+    }
+
+    try {
+      if (newScanner.isScanning) {
+        await newScanner.stop();
+      }
+      newScanner.clear();
+    } catch (e) {}
+
+    if (requestId === modeRequestId) {
+
+      running = false;
+      starting = false;
+      currentMode = "none";
+
+      showPlaceholder();
+
+      if (error.name === "NotAllowedError") {
+        setStatus("ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณาตรวจสอบสิทธิ์กล้อง");
+      } else {
+        setStatus("เปิดกล้องสแกนไม่สำเร็จ: " + error);
+      }
+    }
+
+  } finally {
+
+    if (requestId === modeRequestId) {
+      setButtonsDisabled(false);
+    }
+  }
+}
+
+
+/* =========================================
+   SCAN SUCCESS
+========================================= */
+
 function onScanSuccess(decodedText) {
 
-  if (paused) return;
+  if (scanSent || currentMode !== "scan") return;
 
-  const value = String(decodedText || "").trim();
-  if (!value) return;
+  const tracking = String(decodedText || "").trim();
 
+  if (!tracking) return;
+
+  scanSent = true;
   paused = true;
 
   try {
-    scanner.pause(true);
-  } catch (e) {}
+    if (scanner && scanner.isScanning) {
+      scanner.pause(true);
+    }
+  } catch (e) {
+    console.warn(e);
+  }
 
-  trackingBox.textContent = value;
-  setStatus("สแกนสำเร็จ กำลังส่งเลข Tracking กลับระบบ...");
+  trackingValueEl.textContent = tracking;
+  resultEl.style.display = "block";
+
+  setStatus("สแกนสำเร็จ กำลังส่งเลข Tracking กลับหน้าระบบหลัก");
 
   const sent = sendToParent({
     type: "TRACKING_SCANNED",
-    tracking: value
+    tracking: tracking
   });
 
-  if (sent) {
-    setStatus("ส่งเลข Tracking แล้ว กรุณาตรวจสอบและบันทึกพัสดุในหน้าระบบหลัก");
-  } else {
-    paused = false;
-    try {
-      scanner.resume();
-    } catch (e) {}
+  if (!sent) {
+    setStatus("สแกนสำเร็จ แต่ไม่สามารถส่งข้อมูลกลับหน้าหลักได้");
+    scanSent = false;
   }
 }
 
-// ปิดกล้อง
-async function stopScanner() {
 
-  if (!scanner || !running) return;
+/* =========================================
+   PAGE INITIALIZATION
+========================================= */
 
-  try {
+window.addEventListener("load", function() {
 
-    await scanner.stop();
+  showPlaceholder();
 
-    running = false;
-    paused = false;
+  setStatus("พร้อมใช้งาน กรุณาเลือกโหมดกล้อง");
 
-    setStatus("ปิดกล้องแล้ว");
+  notifyParentReady();
 
-  } catch (e) {
-    setStatus("ไม่สามารถปิดกล้องได้ กรุณาลองอีกครั้ง");
-  }
-}
+  // แจ้งหน้าหลักอีกครั้ง เผื่อหน้าหลักยังไม่พร้อมรับข้อความ
+  setTimeout(notifyParentReady, 500);
+  setTimeout(notifyParentReady, 1200);
 
-window.addEventListener("beforeunload", function() {
-  if (scanner && running) {
-    scanner.stop().catch(function() {});
-  }
 });
 
-// เริ่มเชื่อมต่อ
-notifyParentReady();
 
+/* =========================================
+   CLEANUP WHEN PAGE CLOSES
+========================================= */
+
+window.addEventListener("beforeunload", function() {
+
+  if (photoStream) {
+    photoStream.getTracks().forEach(track => {
+      try {
+        track.stop();
+      } catch (e) {}
+    });
+  }
+
+  if (scanner && scanner.isScanning) {
+    scanner.stop().catch(function() {});
+  }
+
+});
 </script>
+
 </body>
 </html>
