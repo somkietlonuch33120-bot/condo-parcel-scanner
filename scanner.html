@@ -317,13 +317,21 @@ function hidePlaceholder() {
    PARENT WINDOW COMMUNICATION
 ========================================= */
 
+/* =========================================
+   PARENT WINDOW COMMUNICATION - FIX
+========================================= */
+
 function isAllowedParentOrigin(origin) {
   try {
-    const host = new URL(origin).hostname;
+    const url = new URL(origin);
+    const host = url.hostname;
+
+    if (url.protocol !== "https:") return false;
 
     return (
       host === "script.google.com" ||
       host === "script.googleusercontent.com" ||
+      host.endsWith("-script.googleusercontent.com") ||
       host.endsWith(".script.googleusercontent.com")
     );
 
@@ -333,7 +341,7 @@ function isAllowedParentOrigin(origin) {
 }
 
 function notifyParentReady() {
-  if (!window.opener) return;
+  if (!window.opener || window.opener.closed) return;
 
   window.opener.postMessage({
     type: "SCANNER_READY"
@@ -341,13 +349,25 @@ function notifyParentReady() {
 }
 
 function sendToParent(data) {
-  if (!window.opener || !parentOrigin) {
-    setStatus("ไม่สามารถเชื่อมต่อกับหน้าระบบหลักได้");
+
+  if (!window.opener || window.opener.closed) {
+    setStatus("ไม่พบหน้าต่างระบบหลัก กรุณาเปิด Scanner จากหน้ารับพัสดุ");
     return false;
   }
 
-  window.opener.postMessage(data, parentOrigin);
-  return true;
+  if (!parentOrigin) {
+    setStatus("กำลังเชื่อมต่อกับหน้าระบบหลัก กรุณาลองใหม่");
+    return false;
+  }
+
+  try {
+    window.opener.postMessage(data, parentOrigin);
+    return true;
+  } catch (error) {
+    console.error("ส่งข้อมูลกลับหน้าหลักไม่สำเร็จ:", error);
+    setStatus("ส่ง Tracking กลับหน้าหลักไม่สำเร็จ");
+    return false;
+  }
 }
 
 window.addEventListener("message", function(event) {
@@ -356,11 +376,18 @@ window.addEventListener("message", function(event) {
 
   if (event.data?.type === "PARENT_INIT") {
 
-    if (!isAllowedParentOrigin(event.origin)) return;
+    if (!isAllowedParentOrigin(event.origin)) {
+      console.warn("Parent origin ไม่ได้รับอนุญาต:", event.origin);
+      return;
+    }
 
     parentOrigin = event.origin;
 
-    notifyParentReady();
+    console.log("เชื่อมต่อหน้าหลักสำเร็จ:", parentOrigin);
+
+    setStatus("เชื่อมต่อหน้าระบบหลักแล้ว พร้อมใช้งาน");
+
+    // ไม่ส่ง SCANNER_READY ซ้ำตรงนี้ เพื่อป้องกันการวนข้อความ
     return;
   }
 
@@ -383,7 +410,6 @@ window.addEventListener("message", function(event) {
   }
 
 });
-
 
 /* =========================================
    STOP PHOTO CAMERA
@@ -797,6 +823,16 @@ function onScanSuccess(decodedText) {
 
   if (!tracking) return;
 
+  if (!window.opener || window.opener.closed) {
+    setStatus("ไม่พบหน้าต่างระบบหลัก ไม่สามารถส่ง Tracking ได้");
+    return;
+  }
+
+  if (!parentOrigin) {
+    setStatus("ยังไม่ได้เชื่อมต่อหน้าหลัก กรุณารอสักครู่แล้วสแกนใหม่");
+    return;
+  }
+
   scanSent = true;
   paused = true;
 
@@ -811,7 +847,7 @@ function onScanSuccess(decodedText) {
   trackingValueEl.textContent = tracking;
   resultEl.style.display = "block";
 
-  setStatus("สแกนสำเร็จ กำลังส่ง Tracking กลับหน้ากรอกพัสดุ");
+  setStatus("กำลังส่ง Tracking กลับหน้ากรอกพัสดุ...");
 
   const sent = sendToParent({
     type: "TRACKING_SCANNED",
@@ -820,19 +856,24 @@ function onScanSuccess(decodedText) {
 
   if (!sent) {
     scanSent = false;
-    setStatus("ไม่สามารถส่ง Tracking กลับหน้าหลักได้");
+    paused = false;
+
+    try {
+      if (scanner && scanner.isScanning) {
+        scanner.resume();
+      }
+    } catch (e) {}
+
     return;
   }
 
-  // ให้หน้าหลักได้รับ Tracking ก่อน แล้วปิดหน้าต่างสแกน
+  setStatus("ส่ง Tracking สำเร็จ กำลังกลับหน้ากรอกพัสดุ");
+
   setTimeout(function() {
-    try {
-      window.close();
-    } catch (e) {
-      console.warn("Cannot close scanner window", e);
-    }
-  }, 500);
+    window.close();
+  }, 700);
 }
+
 
 /* =========================================
    PAGE INITIALIZATION
