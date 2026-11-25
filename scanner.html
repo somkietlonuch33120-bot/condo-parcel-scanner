@@ -215,28 +215,30 @@ button:active:not(:disabled) {
 
   <!-- ปุ่มเรียงตามที่กำหนด -->
   <div class="buttons">
-
+  
     <button
       id="photoButton"
       class="btn-photo"
-      onclick="startPhotoCamera()">
+      type="button">
       📷 กล้องถ่ายรูป
     </button>
-
+  
     <button
       id="scanButton"
       class="btn-scan"
+      type="button"
       onclick="startScanner()">
       🔍 กล้องสแกน
     </button>
-
+  
     <button
       id="stopButton"
       class="btn-stop"
+      type="button"
       onclick="stopAllCameras()">
       ⏹ ปิดกล้อง
     </button>
-
+  
   </div>
 
   <div id="result" class="result">
@@ -466,7 +468,7 @@ async function stopAllCameras() {
   showPlaceholder();
 
   resultEl.style.display = "none";
-
+  photoButton.textContent = "📷 กล้องถ่ายรูป";
   setButtonsDisabled(false);
   setStatus("ปิดกล้องเรียบร้อยแล้ว");
 }
@@ -526,6 +528,7 @@ async function startPhotoCamera() {
     await photoVideo.play();
 
     setStatus("เปิดกล้องถ่ายรูปแล้ว สามารถกดถ่ายภาพได้");
+    photoButton.textContent = "📸 ถ่ายภาพ";
     photoInfoEl.textContent =
       "กำลังใช้โหมดถ่ายภาพพัสดุ สามารถถ่ายภาพได้หลายครั้ง";
 
@@ -637,15 +640,17 @@ function capturePhoto() {
    - เมื่อเปิดกล้องแล้ว กดอีกครั้งเพื่อถ่ายภาพ
 ========================================= */
 
-photoButton.addEventListener("click", function() {
+photoButton.onclick = async function() {
 
-  if (currentMode === "photo" && photoStream) {
-    capturePhoto();
-  } else {
-    startPhotoCamera();
+  // ถ้ายังไม่ได้เปิดกล้อง ให้เปิดกล้องก่อน
+  if (currentMode !== "photo" || !photoStream) {
+    await startPhotoCamera();
+    return;
   }
 
-});
+  // ถ้าเปิดกล้องอยู่ ให้ถ่ายภาพ
+  capturePhoto();
+};
 
 
 /* =========================================
@@ -783,6 +788,7 @@ async function startScanner() {
    SCAN SUCCESS
 ========================================= */
 
+
 function onScanSuccess(decodedText) {
 
   if (scanSent || currentMode !== "scan") return;
@@ -805,7 +811,7 @@ function onScanSuccess(decodedText) {
   trackingValueEl.textContent = tracking;
   resultEl.style.display = "block";
 
-  setStatus("สแกนสำเร็จ กำลังส่งเลข Tracking กลับหน้าระบบหลัก");
+  setStatus("สแกนสำเร็จ กำลังส่ง Tracking กลับหน้ากรอกพัสดุ");
 
   const sent = sendToParent({
     type: "TRACKING_SCANNED",
@@ -813,11 +819,20 @@ function onScanSuccess(decodedText) {
   });
 
   if (!sent) {
-    setStatus("สแกนสำเร็จ แต่ไม่สามารถส่งข้อมูลกลับหน้าหลักได้");
     scanSent = false;
+    setStatus("ไม่สามารถส่ง Tracking กลับหน้าหลักได้");
+    return;
   }
-}
 
+  // ให้หน้าหลักได้รับ Tracking ก่อน แล้วปิดหน้าต่างสแกน
+  setTimeout(function() {
+    try {
+      window.close();
+    } catch (e) {
+      console.warn("Cannot close scanner window", e);
+    }
+  }, 500);
+}
 
 /* =========================================
    PAGE INITIALIZATION
